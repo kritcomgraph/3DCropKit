@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3DStereo Crop Kit (MPO & SBS Support)</title>
+    
+    <!-- PWA Config -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/813/813426.png">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Kanit -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        },
+                        dark: {
+                            800: '#1e293b',
+                            900: '#0f172a',
+                            950: '#020617'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Kanit', 'Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        .crop-box {
+            position: absolute;
+            border: 2px solid #3b82f6;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+            cursor: move;
+            touch-action: none;
+        }
+
+        .crop-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background-color: #ffffff;
+            border: 2px solid #3b82f6;
+            border-radius: 50%;
+        }
+
+        .handle-tl { top: -6px; left: -6px; cursor: nwse-resize; }
+        .handle-tr { top: -6px; right: -6px; cursor: nesw-resize; }
+        .handle-bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
+        .handle-br { bottom: -6px; right: -6px; cursor: nwse-resize; }
+
+        .grid-line {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.3);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-dark-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800 bg-dark-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <i class="fa-solid font-bold text-xl text-white">3D</i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">3DStereo Crop Kit</h1>
+                    <p class="text-xs text-slate-400">เครื่องมือจัดการและครอบตัดภาพ 3D (รองรับ MPO & SBS)</p>
+                </div>
+            </div>
+            
+            <div id="fileInfoBadge" class="hidden sm:flex items-center gap-2 bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg text-xs text-slate-300">
+                <i class="fa-regular fa-image text-blue-400"></i>
+                <span id="fileName">image.jpg</span>
+                <span id="fileTypeBadge" class="bg-blue-600/80 text-white px-1.5 py-0.5 rounded text-[10px]">SBS</span>
+                <span id="fileDimensions" class="bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded text-[10px]">0x0</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
+        
+        <!-- Upload Zone -->
+        <div id="uploadSection" class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-2xl p-8 sm:p-12 transition-all bg-dark-900/40 hover:bg-dark-900/80 cursor-pointer min-h-[400px]">
+            <input type="file" id="imageInput" accept="image/*,.mpo" class="hidden">
+            <div class="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-4 text-blue-400 text-3xl shadow-inner border border-slate-700">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            <h2 class="text-xl font-semibold text-slate-200 mb-2 text-center">อัปโหลดภาพ 3D (MPO หรือ Side-by-Side)</h2>
+            <p class="text-slate-400 text-sm mb-6 text-center max-w-md">รองรับไฟล์ <b>.MPO</b> จากกล้อง 3D และรูปภาพ SBS แบบมาตรฐาน (JPG, PNG, WEBP)</p>
+            <button onclick="document.getElementById('imageInput').click()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center gap-2">
+                <i class="fa-solid fa-folder-open"></i> เลือกไฟล์รูปภาพ / MPO
+            </button>
+        </div>
+
+        <!-- Editor View -->
+        <div id="editorSection" class="hidden flex-1 flex flex-col lg:flex-row gap-6">
+            
+            <!-- Left Panel: Interactive Crop Canvas -->
+            <div class="flex-1 flex flex-col bg-dark-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                <!-- Toolbar -->
+                <div class="bg-slate-900 border-b border-slate-800 p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 bg-slate-800 px-2 py-1 rounded">ต้นฉบับ SBS</span>
+                        <p class="text-xs text-slate-400 hidden sm:inline">ลาก Bounding Box ที่ฝั่งซ้ายเพื่อปรับแต่ง</p>
+                    </div>
+                    <button id="reuploadBtn" class="text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate-left"></i> เปลี่ยนรูปภาพ
+                    </button>
+                </div>
+
+                <!-- Canvas Area -->
+                <div class="flex-1 p-4 flex items-center justify-center bg-slate-950/50 overflow-auto relative min-h-[350px]" id="canvasContainer">
+                    <div id="editorWrapper" class="relative inline-block select-none max-w-full max-h-[60vh]">
+                        <!-- Source Image Display -->
+                        <img id="sourceImage" class="max-w-full max-h-[60vh] object-contain block pointer-events-none rounded" alt="3D Source">
+                        
+                        <!-- Overlay Canvas for Left/Right Divider line -->
+                        <canvas id="overlayCanvas" class="absolute inset-0 pointer-events-none z-10"></canvas>
+                        
+                        <!-- Left Crop Box -->
+                        <div id="cropBoxLeft" class="crop-box z-20">
+                            <div class="crop-handle handle-tl" data-handle="tl"></div>
+                            <div class="crop-handle handle-tr" data-handle="tr"></div>
+                            <div class="crop-handle handle-bl" data-handle="bl"></div>
+                            <div class="crop-handle handle-br" data-handle="br"></div>
+                            
+                            <!-- Grid lines -->
+                            <div class="grid-line top-1/3 left-0 right-0 h-px"></div>
+                            <div class="grid-line top-2/3 left-0 right-0 h-px"></div>
+                            <div class="grid-line left-1/3 top-0 bottom-0 w-px"></div>
+                            <div class="grid-line left-2/3 top-0 bottom-0 w-px"></div>
+                            
+                            <span class="absolute top-1 left-1 bg-blue-600/80 text-[10px] text-white px-1.5 py-0.5 rounded backdrop-blur">L</span>
+                        </div>
+
+                        <!-- Right Synced Crop Box -->
+                        <div id="cropBoxRight" class="crop-box z-20 border-green-500 pointer-events-none opacity-80">
+                            <span class="absolute top-1 left-1 bg-green-600/80 text-[10px] text-white px-1.5 py-0.5 rounded backdrop-blur">R</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Controls & Live Preview -->
+            <div class="w-full lg:w-96 flex flex-col gap-6">
+                
+                <!-- Settings Card -->
+                <div class="bg-dark-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-5">
+                    <h3 class="font-semibold text-slate-200 border-b border-slate-800 pb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-blue-400"></i> ตั้งค่าการครอบตัด (Crop Settings)
+                    </h3>
+
+                    <!-- Aspect Ratio Selector -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-2">อัตราส่วนภาพแต่ละข้าง (Aspect Ratio)</label>
+                        <div class="grid grid-cols-5 gap-1.5 sm:gap-2">
+                            <button data-aspect="1:1" class="aspect-btn active bg-blue-600 text-white text-xs font-medium py-2 rounded-lg border border-blue-500 transition">1:1</button>
+                            <button data-aspect="4:3" class="aspect-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium py-2 rounded-lg border border-slate-700 transition">4:3</button>
+                            <button data-aspect="3:4" class="aspect-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium py-2 rounded-lg border border-slate-700 transition">3:4</button>
+                            <button data-aspect="16:9" class="aspect-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium py-2 rounded-lg border border-slate-700 transition">16:9</button>
+                            <button data-aspect="free" class="aspect-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium py-2 rounded-lg border border-slate-700 transition">อิสระ</button>
+                        </div>
+                    </div>
+
+                    <!-- Resolution Output Selector -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-2">ความละเอียดส่งออกแต่ละข้าง (Per-Eye Resolution)</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button data-res="1k" class="res-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium py-2 rounded-lg border border-slate-700 transition">1K</button>
+                            <button data-res="2k" class="res-btn active bg-blue-600 text-white text-xs font-medium py-2 rounded-lg border border-blue-500 transition">2K</button>
+                            <button data-res="4k" class="res-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium py-2 rounded-lg border border-slate-700 transition">4K</button>
+                            <button data-res="8k" class="res-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium py-2 rounded-lg border border-slate-700 transition">8K</button>
+                        </div>
+                        <p id="resInfoText" class="text-[11px] text-slate-400 mt-2 text-right">ขนาดรวม SBS: <span class="text-blue-400 font-semibold">3840 x 2160 px</span></p>
+                    </div>
+
+                    <!-- Parallax/Horizontal Offset Slider -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs font-medium text-slate-400">ปรับระยะ Depth (Convergence / Shift)</label>
+                            <span id="shiftVal" class="text-xs font-mono text-blue-400">0 px</span>
+                        </div>
+                        <input type="range" id="shiftSlider" min="-30" max="30" value="0" class="w-full accent-blue-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                            <span>ลึกขึ้น (-)</span>
+                            <span>ปกติ (0)</span>
+                            <span>นูนขึ้น (+)</span>
+                        </div>
+                    </div>
+
+                    <!-- Download Button -->
+                    <button id="downloadBtn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-medium py-3 rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center justify-center gap-2 mt-2">
+                        <i class="fa-solid fa-download"></i> ดาวน์โหลดภาพ 3D SBS
+                    </button>
+                </div>
+
+                <!-- Live Preview Card -->
+                <div class="bg-dark-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                    <h3 class="font-semibold text-slate-200 flex items-center gap-2 text-sm">
+                        <i class="fa-regular fa-eye text-green-400"></i> ตัวอย่างภาพตัดส่งออก (Live Preview)
+                    </h3>
+
+                    <!-- Left & Right Split Preview -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-950 p-2 rounded-xl border border-slate-800 text-center">
+                            <span class="text-[10px] font-semibold text-blue-400 block mb-1">ตาซ้าย (Left Eye)</span>
+                            <div class="aspect-square w-full flex items-center justify-center overflow-hidden rounded bg-black/40">
+                                <canvas id="previewLeftCanvas" class="max-w-full max-h-full object-contain"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-slate-950 p-2 rounded-xl border border-slate-800 text-center">
+                            <span class="text-[10px] font-semibold text-green-400 block mb-1">ตาขวา (Right Eye)</span>
+                            <div class="aspect-square w-full flex items-center justify-center overflow-hidden rounded bg-black/40">
+                                <canvas id="previewRightCanvas" class="max-w-full max-h-full object-contain"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Combined SBS Output Preview -->
+                    <div class="bg-slate-950 p-2 rounded-xl border border-slate-800 text-center">
+                        <span class="text-[10px] font-semibold text-slate-400 block mb-1">ภาพรวม Side-by-Side 3D Output</span>
+                        <div class="w-full h-24 flex items-center justify-center overflow-hidden rounded bg-black/40">
+                            <canvas id="previewSbsCanvas" class="max-w-full max-h-full object-contain"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 bg-dark-950 py-4 text-center text-xs text-slate-500">
+        3DStereo Crop Kit &copy; 2026
+    </footer>
+
+    <!-- Application Logic Javascript -->
+    <script>
+        // Service Worker Registration for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker Registered Successfully!', reg))
+                    .catch(err => console.error('Service Worker Registration Failed!', err));
+            });
+        }
+
+        // DOM Elements
+        const imageInput = document.getElementById('imageInput');
+        const uploadSection = document.getElementById('uploadSection');
+        const editorSection = document.getElementById('editorSection');
+        const sourceImage = document.getElementById('sourceImage');
+        const editorWrapper = document.getElementById('editorWrapper');
+        const cropBoxLeft = document.getElementById('cropBoxLeft');
+        const cropBoxRight = document.getElementById('cropBoxRight');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const reuploadBtn = document.getElementById('reuploadBtn');
+        const shiftSlider = document.getElementById('shiftSlider');
+        const shiftVal = document.getElementById('shiftVal');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // Preview Canvases
+        const previewLeftCanvas = document.getElementById('previewLeftCanvas');
+        const previewRightCanvas = document.getElementById('previewRightCanvas');
+        const previewSbsCanvas = document.getElementById('previewSbsCanvas');
+
+        // Badges
+        const fileInfoBadge = document.getElementById('fileInfoBadge');
+        const fileName = document.getElementById('fileName');
+        const fileTypeBadge = document.getElementById('fileTypeBadge');
+        const fileDimensions = document.getElementById('fileDimensions');
+        const resInfoText = document.getElementById('resInfoText');
+
+        // App State
+        let imageLoaded = false;
+        let imgNaturalWidth = 0;
+        let imgNaturalHeight = 0;
+        let eyeWidth = 0;
+        
+        let selectedAspect = '1:1';
+        let selectedRes = '2k';
+        let horizontalShift = 0;
+
+        let cropState = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 };
+
+        let isDragging = false;
+        let isResizing = false;
+        let currentHandle = null;
+        let startX = 0, startY = 0;
+        let startCropX = 0, startCropY = 0, startCropW = 0, startCropH = 0;
+
+        const RES_MAP = { '1k': 1024, '2k': 2048, '4k': 3840, '8k': 7680 };
+
+        // Upload Handlers
+        uploadSection.addEventListener('click', (e) => {
+            if (e.target !== imageInput) imageInput.click();
+        });
+
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('border-blue-500', 'bg-dark-900/80');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('border-blue-500', 'bg-dark-900/80');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('border-blue-500', 'bg-dark-900/80');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+
+        imageInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        reuploadBtn.addEventListener('click', () => {
+            editorSection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            fileInfoBadge.classList.add('hidden');
+            imageInput.value = '';
+            imageLoaded = false;
+        });
+
+        // ฟังก์ชันสกัดภาพจากไฟล์ .MPO โดยการสแกน JPEG Markers
+        function extractFramesFromMPO(buffer) {
+            const bytes = new Uint8Array(buffer);
+            const frames = [];
+            let offset = 0;
+
+            while (offset < bytes.length - 1) {
+                if (bytes[offset] !== 0xFF || bytes[offset + 1] !== 0xD8) {
+                    offset++;
+                    continue;
+                }
+
+                const start = offset;
+                offset += 2;
+                let inFrame = true;
+
+                while (offset < bytes.length - 1 && inFrame) {
+                    if (bytes[offset] !== 0xFF) {
+                        offset++;
+                        continue;
+                    }
+
+                    let marker = bytes[offset + 1];
+
+                    while (marker === 0xFF && offset + 1 < bytes.length) {
+                        offset++;
+                        marker = bytes[offset + 1];
+                    }
+
+                    if (marker === 0xD9) {
+                        offset += 2;
+                        frames.push(bytes.subarray(start, offset));
+                        inFrame = false;
+                        break;
+                    } else if (marker === 0xD8 || (marker >= 0xD0 && marker <= 0xD7) || marker === 0x00) {
+                        offset += 2;
+                    } else {
+                        if (offset + 3 < bytes.length) {
+                            const length = (bytes[offset + 2] << 8) | bytes[offset + 3];
+                            offset += 2 + length;
+                        } else {
+                            offset++;
+                        }
+                    }
+                }
+            }
+            return frames;
+        }
+
+        // ฟังก์ชันแปลงไฟล์ .MPO เป็นภาพ Side-by-Side (SBS)
+        function parseMPO(buffer) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const rawFrames = extractFramesFromMPO(buffer);
+
+                    const validFrames = rawFrames.filter(frame => frame.length > 50 * 1024);
+
+                    if (validFrames.length < 2) {
+                        if (rawFrames.length < 2) {
+                            reject('ไม่พบภาพตาซ้ายและตาขวาครบ 2 ภาพในไฟล์ MPO นี้');
+                            return;
+                        }
+                        validFrames.push(rawFrames[0], rawFrames[1]);
+                    }
+
+                    const blob1 = new Blob([validFrames[0]], { type: 'image/jpeg' });
+                    const blob2 = new Blob([validFrames[1]], { type: 'image/jpeg' });
+
+                    const imgL = new Image();
+                    const imgR = new Image();
+
+                    let loadedCount = 0;
+                    const checkDone = () => {
+                        loadedCount++;
+                        if (loadedCount === 2) {
+                            const sbsCanvas = document.createElement('canvas');
+                            sbsCanvas.width = imgL.width + imgR.width;
+                            sbsCanvas.height = Math.max(imgL.height, imgR.height);
+
+                            const ctx = sbsCanvas.getContext('2d');
+                            ctx.drawImage(imgL, 0, 0);
+                            ctx.drawImage(imgR, imgL.width, 0);
+
+                            URL.revokeObjectURL(imgL.src);
+                            URL.revokeObjectURL(imgR.src);
+
+                            resolve(sbsCanvas.toDataURL('image/jpeg', 0.95));
+                        }
+                    };
+
+                    imgL.onload = checkDone;
+                    imgR.onload = checkDone;
+
+                    imgL.onerror = () => reject('ไม่สามารถถอดรหัสภาพตาซ้ายได้');
+                    imgR.onerror = () => reject('ไม่สามารถถอดรหัสภาพตาขวาได้');
+
+                    imgL.src = URL.createObjectURL(blob1);
+                    imgR.src = URL.createObjectURL(blob2);
+
+                } catch (err) {
+                    reject(err.message || 'เกิดข้อผิดพลาดในการแยกไฟล์ MPO');
+                }
+            });
+        }
+
+        function handleFileSelect(file) {
+            fileName.textContent = file.name;
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            if (ext === 'mpo') {
+                fileTypeBadge.textContent = 'MPO 3D';
+                fileTypeBadge.className = 'bg-purple-600/80 text-white px-1.5 py-0.5 rounded text-[10px]';
+
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    parseMPO(e.target.result).then(sbsDataUrl => {
+                        loadSourceImage(sbsDataUrl);
+                    }).catch(err => {
+                        alert('เกิดข้อผิดพลาดในการอ่านไฟล์ .MPO: ' + err);
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                fileTypeBadge.textContent = 'SBS Image';
+                fileTypeBadge.className = 'bg-blue-600/80 text-white px-1.5 py-0.5 rounded text-[10px]';
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    loadSourceImage(e.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function loadSourceImage(src) {
+            sourceImage.onload = () => {
+                imgNaturalWidth = sourceImage.naturalWidth;
+                imgNaturalHeight = sourceImage.naturalHeight;
+                eyeWidth = imgNaturalWidth / 2;
+
+                fileDimensions.textContent = `${imgNaturalWidth} x ${imgNaturalHeight}`;
+                fileInfoBadge.classList.remove('hidden');
+                
+                uploadSection.classList.add('hidden');
+                editorSection.classList.remove('hidden');
+
+                imageLoaded = true;
+                resetCropToDefault();
+                updateCropBoxUI();
+                drawDividerLine();
+                updatePreviews();
+            };
+            sourceImage.src = src;
+        }
+
+        window.addEventListener('resize', () => {
+            if (imageLoaded) {
+                updateCropBoxUI();
+                drawDividerLine();
+            }
+        });
+
+        function resetCropToDefault() {
+            cropState.y = 0.1;
+            cropState.h = 0.8;
+
+            if (selectedAspect === 'free') {
+                cropState.x = 0.1;
+                cropState.w = 0.8;
+            } else {
+                applyAspectToCropState();
+            }
+        }
+
+        function applyAspectToCropState() {
+            if (selectedAspect === 'free') return;
+
+            let targetRatio = 1;
+            if (selectedAspect === '1:1') targetRatio = 1;
+            if (selectedAspect === '4:3') targetRatio = 4 / 3;
+            if (selectedAspect === '3:4') targetRatio = 3 / 4;
+            if (selectedAspect === '16:9') targetRatio = 16 / 9;
+
+            let pixelHeight = cropState.h * imgNaturalHeight;
+            let pixelWidth = pixelHeight * targetRatio;
+
+            if (pixelWidth > eyeWidth) {
+                pixelWidth = eyeWidth * 0.8;
+                pixelHeight = pixelWidth / targetRatio;
+            }
+
+            cropState.w = pixelWidth / eyeWidth;
+            cropState.h = pixelHeight / imgNaturalHeight;
+
+            cropState.x = Math.max(0, (1 - cropState.w) / 2);
+            cropState.y = Math.max(0, (1 - cropState.h) / 2);
+        }
+
+        function drawDividerLine() {
+            const displayW = sourceImage.clientWidth;
+            const displayH = sourceImage.clientHeight;
+
+            overlayCanvas.width = displayW;
+            overlayCanvas.height = displayH;
+
+            const ctx = overlayCanvas.getContext('2d');
+            ctx.clearRect(0, 0, displayW, displayH);
+
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ctx.moveTo(displayW / 2, 0);
+            ctx.lineTo(displayW / 2, displayH);
+            ctx.stroke();
+        }
+
+        function updateCropBoxUI() {
+            if (!imageLoaded) return;
+
+            const displayW = sourceImage.clientWidth;
+            const displayH = sourceImage.clientHeight;
+            const displayEyeW = displayW / 2;
+
+            const leftX = cropState.x * displayEyeW;
+            const leftY = cropState.y * displayH;
+            const boxW = cropState.w * displayEyeW;
+            const boxH = cropState.h * displayH;
+
+            cropBoxLeft.style.left = `${leftX}px`;
+            cropBoxLeft.style.top = `${leftY}px`;
+            cropBoxLeft.style.width = `${boxW}px`;
+            cropBoxLeft.style.height = `${boxH}px`;
+
+            const displayShift = (horizontalShift / eyeWidth) * displayEyeW;
+            const rightX = displayEyeW + leftX + displayShift;
+
+            cropBoxRight.style.left = `${rightX}px`;
+            cropBoxRight.style.top = `${leftY}px`;
+            cropBoxRight.style.width = `${boxW}px`;
+            cropBoxRight.style.height = `${boxH}px`;
+        }
+
+        cropBoxLeft.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            const handle = e.target.getAttribute('data-handle');
+            
+            startX = e.clientX;
+            startY = e.clientY;
+
+            const displayEyeW = sourceImage.clientWidth / 2;
+            const displayH = sourceImage.clientHeight;
+
+            startCropX = cropState.x * displayEyeW;
+            startCropY = cropState.y * displayH;
+            startCropW = cropState.w * displayEyeW;
+            startCropH = cropState.h * displayH;
+
+            if (handle) {
+                isResizing = true;
+                currentHandle = handle;
+            } else {
+                isDragging = true;
+            }
+
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+        });
+
+        function onPointerMove(e) {
+            if (!isDragging && !isResizing) return;
+
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            const displayEyeW = sourceImage.clientWidth / 2;
+            const displayH = sourceImage.clientHeight;
+
+            if (isDragging) {
+                let newX = Math.max(0, Math.min(displayEyeW - startCropW, startCropX + dx));
+                let newY = Math.max(0, Math.min(displayH - startCropH, startCropY + dy));
+
+                cropState.x = newX / displayEyeW;
+                cropState.y = newY / displayH;
+            } else if (isResizing) {
+                let newX = startCropX;
+                let newY = startCropY;
+                let newW = startCropW;
+                let newH = startCropH;
+
+                let ratio = 1;
+                if (selectedAspect === '1:1') ratio = 1;
+                if (selectedAspect === '4:3') ratio = 4 / 3;
+                if (selectedAspect === '3:4') ratio = 3 / 4;
+                if (selectedAspect === '16:9') ratio = 16 / 9;
+
+                if (currentHandle === 'br') {
+                    newW = Math.max(30, Math.min(displayEyeW - startCropX, startCropW + dx));
+                    newH = (selectedAspect !== 'free') ? newW / ratio : Math.max(30, Math.min(displayH - startCropY, startCropH + dy));
+                } else if (currentHandle === 'bl') {
+                    const maxDx = startCropW - 30;
+                    const appliedDx = Math.min(dx, maxDx);
+                    newX = Math.max(0, startCropX + appliedDx);
+                    newW = startCropW - (newX - startCropX);
+                    newH = (selectedAspect !== 'free') ? newW / ratio : Math.max(30, Math.min(displayH - startCropY, startCropH + dy));
+                } else if (currentHandle === 'tr') {
+                    newW = Math.max(30, Math.min(displayEyeW - startCropX, startCropW + dx));
+                    if (selectedAspect !== 'free') {
+                        newH = newW / ratio;
+                        newY = Math.max(0, startCropY - (newH - startCropH));
+                    } else {
+                        const appliedDy = Math.min(dy, startCropH - 30);
+                        newY = Math.max(0, startCropY + appliedDy);
+                        newH = startCropH - (newY - startCropY);
+                    }
+                } else if (currentHandle === 'tl') {
+                    const maxDx = startCropW - 30;
+                    const appliedDx = Math.min(dx, maxDx);
+                    newX = Math.max(0, startCropX + appliedDx);
+                    newW = startCropW - (newX - startCropX);
+
+                    if (selectedAspect !== 'free') {
+                        newH = newW / ratio;
+                        newY = Math.max(0, startCropY - (newH - startCropH));
+                    } else {
+                        const appliedDy = Math.min(dy, startCropH - 30);
+                        newY = Math.max(0, startCropY + appliedDy);
+                        newH = startCropH - (newY - startCropY);
+                    }
+                }
+
+                if (newY + newH <= displayH && newX + newW <= displayEyeW) {
+                    cropState.x = newX / displayEyeW;
+                    cropState.y = newY / displayH;
+                    cropState.w = newW / displayEyeW;
+                    cropState.h = newH / displayH;
+                }
+            }
+
+            updateCropBoxUI();
+            updatePreviews();
+        }
+
+        function onPointerUp() {
+            isDragging = false;
+            isResizing = false;
+            currentHandle = null;
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', onPointerUp);
+        }
+
+        document.querySelectorAll('.aspect-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.aspect-btn').forEach(b => {
+                    b.classList.remove('active', 'bg-blue-600', 'text-white', 'border-blue-500');
+                    b.classList.add('bg-slate-800', 'text-slate-300', 'border-slate-700');
+                });
+                
+                e.target.classList.add('active', 'bg-blue-600', 'text-white', 'border-blue-500');
+                e.target.classList.remove('bg-slate-800', 'text-slate-300', 'border-slate-700');
+
+                selectedAspect = e.target.getAttribute('data-aspect');
+                applyAspectToCropState();
+                updateCropBoxUI();
+                updatePreviews();
+            });
+        });
+
+        document.querySelectorAll('.res-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.res-btn').forEach(b => {
+                    b.classList.remove('active', 'bg-blue-600', 'text-white', 'border-blue-500');
+                    b.classList.add('bg-slate-800', 'text-slate-300', 'border-slate-700');
+                });
+
+                e.target.classList.add('active', 'bg-blue-600', 'text-white', 'border-blue-500');
+                e.target.classList.remove('bg-slate-800', 'text-slate-300', 'border-slate-700');
+
+                selectedRes = e.target.getAttribute('data-res');
+                updatePreviews();
+            });
+        });
+
+        shiftSlider.addEventListener('input', (e) => {
+            horizontalShift = parseInt(e.target.value);
+            shiftVal.textContent = `${horizontalShift > 0 ? '+' : ''}${horizontalShift} px`;
+            updateCropBoxUI();
+            updatePreviews();
+        });
+
+        function updatePreviews() {
+            if (!imageLoaded) return;
+
+            const cropLX = cropState.x * eyeWidth;
+            const cropLY = cropState.y * imgNaturalHeight;
+            const cropW = cropState.w * eyeWidth;
+            const cropH = cropState.h * imgNaturalHeight;
+
+            const cropRX = eyeWidth + cropLX + horizontalShift;
+            const cropRY = cropLY;
+
+            const targetMaxDim = RES_MAP[selectedRes];
+            let outW, outH;
+
+            if (cropW >= cropH) {
+                outW = targetMaxDim;
+                outH = Math.round(targetMaxDim * (cropH / cropW));
+            } else {
+                outH = targetMaxDim;
+                outW = Math.round(targetMaxDim * (cropW / cropH));
+            }
+
+            resInfoText.innerHTML = `ขนาดแต่ละข้าง: <span class="text-blue-400 font-semibold">${outW} x ${outH}</span> | รวม SBS: <span class="text-indigo-400 font-semibold">${outW * 2} x ${outH}</span>`;
+
+            previewLeftCanvas.width = outW;
+            previewLeftCanvas.height = outH;
+            const ctxL = previewLeftCanvas.getContext('2d');
+            ctxL.drawImage(sourceImage, cropLX, cropLY, cropW, cropH, 0, 0, outW, outH);
+
+            previewRightCanvas.width = outW;
+            previewRightCanvas.height = outH;
+            const ctxR = previewRightCanvas.getContext('2d');
+            ctxR.drawImage(sourceImage, cropRX, cropRY, cropW, cropH, 0, 0, outW, outH);
+
+            previewSbsCanvas.width = outW * 2;
+            previewSbsCanvas.height = outH;
+            const ctxSbs = previewSbsCanvas.getContext('2d');
+            ctxSbs.drawImage(previewLeftCanvas, 0, 0);
+            ctxSbs.drawImage(previewRightCanvas, outW, 0);
+        }
+
+        downloadBtn.addEventListener('click', () => {
+            if (!imageLoaded) return;
+
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = previewSbsCanvas.width;
+            exportCanvas.height = previewSbsCanvas.height;
+
+            const ctx = exportCanvas.getContext('2d');
+            ctx.drawImage(previewSbsCanvas, 0, 0);
+
+            const link = document.createElement('a');
+            const originalName = fileName.textContent.replace(/\.[^/.]+$/, "");
+            link.download = `${originalName}_3D_SBS_${selectedRes.toUpperCase()}.jpg`;
+            link.href = exportCanvas.toDataURL('image/jpeg', 0.92);
+            link.click();
+        });
+    </script>
+</body>
+</html>
